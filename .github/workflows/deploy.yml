@@ -1,0 +1,71 @@
+name: CI/CD
+
+# Trigger the workflow on push and
+# pull request events on the main branch
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Authenticate to the server via ssh
+# and run our deployment script
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Set up .env for testing
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Larastan
+        run: composer run-script phpstan
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          port: ${{ secrets.PORT }}
+          key: ${{ secrets.SSHKEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            set -e
+            echo "Deployment started ..."
+            cd /home/booking/public_html
+            git pull origin main
+            php8.3 /usr/local/bin/composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+            php8.3 artisan clear-compiled
+            php8.3 artisan optimize
+            php8.3 artisan route:clear
+            npm ci
+            npx vite build
+            php8.3 artisan migrate --force
+            echo "Deployment finished!"
+
+      - name: Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@master
