@@ -6,6 +6,9 @@ This is just a simple restaurant booking app.
 - Filament Forms + Tables :heart:
 - `spatie/permission` for admin/guest roles
 
+### Testing
+Just run `composer pest` to run all feature and unit tests.
+
 ### Wishlist
 - [ ] dynamic opening hours
 - [ ] e-mail booking confirmation with a signed link to cancel the booking
